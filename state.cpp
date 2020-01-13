@@ -8,11 +8,7 @@ Board::Board(int seed) : rng(seed) {
   initCannonMagicTable();
 }
 
-void Board::init() {
-  sideToMove = COLOR_NONE;
-  status_ = Status::RedPlay;
-  gameLength = 0;
-
+void Board::clear_bitboards() {
   // Initialize square board and bitboard
   for (Color c = RED; c < COLOR_NB; ++c) {
     byColorBB[c] = Bitboard(0);
@@ -23,25 +19,106 @@ void Board::init() {
   }
 
   for (Square s = SQ_A1; s < SQUARE_NB; ++s) {
+    board[s] = NO_PIECE;
+  }
+}
+
+void Board::init() {
+  sideToMove = COLOR_NONE;
+  status_ = Status::RedPlay;
+  gameLength = 0;
+
+  clear_bitboards();
+
+  for (Square s = SQ_A1; s < SQUARE_NB; ++s) {
     put_piece(PIECE_DARK, s);
   }
 }
 
+void Board::set_from_FEN(std::string FEN) {
+  std::istringstream fenStream(FEN);
+  std::string token;
+  
+  clear_bitboards();
+
+  //std::cerr << "After clear bitboards\n";
+  //std::cerr << std::bitset<32>(pieces(EMPTY)) << std::endl;
+  Square s = SQ_A8; // Fen string starts at a8 = index 28
+  fenStream >> token;
+  for (auto curChar : token) {
+    switch(curChar) {
+      case 'p': put_piece(make_piece(RED, PAWN), s);
+                ++s; break;
+      case 'c': put_piece(make_piece(RED, CANNON), s);
+                ++s; break;
+      case 'n': put_piece(make_piece(RED, KNIGHT), s);
+                ++s; break;
+      case 'r': put_piece(make_piece(RED, ROOK), s);
+                ++s; break;
+      case 'm': put_piece(make_piece(RED, MINISTER), s);
+                ++s; break;
+      case 'g': put_piece(make_piece(RED, GUARD), s);
+                ++s; break;
+      case 'k': put_piece(make_piece(RED, KING), s);
+                ++s; break;
+      case 'P': put_piece(make_piece(BLACK, PAWN), s);
+                ++s; break;
+      case 'C': put_piece(make_piece(BLACK, CANNON), s);
+                ++s; break;
+      case 'N': put_piece(make_piece(BLACK, KNIGHT), s);
+                ++s; break;
+      case 'R': put_piece(make_piece(BLACK, ROOK), s);
+                ++s; break;
+      case 'M': put_piece(make_piece(BLACK, MINISTER), s);
+                ++s; break;
+      case 'G': put_piece(make_piece(BLACK, GUARD), s);
+                ++s; break;
+      case 'K': put_piece(make_piece(BLACK, KING), s);
+                ++s; break;
+      case '/': s -= Square(8); // Go down one rank
+                break;
+      default: s += Square(curChar - '0');
+    }
+  }
+
+  fenStream >> token;
+  if (token == "r") {
+    sideToMove = RED;
+    status_ = Status::RedPlay;
+  } else if (token == "b") {
+    sideToMove = BLACK;
+    status_ = Status::BlackPlay;
+  }
+
+  fenStream >> token;
+  gameLength = stoi(token);
+}
+
+// TODO: Check the correctness of pMoves table
 template <Color Us>
 int Board::legal_normal_actions(MoveList &mL, int idx) {
   Bitboard dest;
+  
+  std::cout << std::bitset<32>(pieces(ALL_PIECES)) << std::endl;
+  std::cout << std::bitset<32>(~pieces(ALL_PIECES)) << std::endl;
   for (PieceType p = PAWN; p <= KING; ++p) {
     Bitboard b = pieces(Us, p);
     while (b) {
       Bitboard mask = LS1B(b);
       b ^= mask;
       Square src = popLsb(mask);
-      dest = pMoves[src] & pieces(EMPTY);
+      assert(type_of(board[src]) == p);
+      dest = pMoves[src] & (~pieces(ALL_PIECES));
+      std::cout << src << " " << std::bitset<32>(dest) << std::endl;
 
       while (dest) {
         Bitboard mask2 = LS1B(dest);
         dest ^= mask2;
         Square result = popLsb(mask2);
+        if (type_of(board[result]) != EMPTY) {
+          std::cout << result << " type " << type_of(board[result]);
+          assert(type_of(board[result]) == EMPTY);
+        }
         mL[idx++] = make_move(src, result);
       }
     }
@@ -76,6 +153,7 @@ int Board::legal_capture_actions(MoveList &mL, int idx) {
       Bitboard mask = LS1B(b);
       b ^= mask;
       Square src = popLsb(mask);
+      assert(type_of(board[src]) == p);
       if (p == CANNON) {
         dest = getCannonAttack(src, pieces(ALL_PIECES)) & pieces(Op);
       } else {
@@ -86,6 +164,7 @@ int Board::legal_capture_actions(MoveList &mL, int idx) {
         Bitboard mask2 = LS1B(dest);
         dest ^= mask2;
         Square result = popLsb(mask2);
+        assert(color_of(board[result]) == Op);
         mL[idx++] = make_move(src, result);
       }
     }
@@ -175,16 +254,17 @@ bool Board::genmove(Move &m) {
 
   flip = legal_flip_actions(mList, capture);
   size = flip;
+  assert(size > 0);
   if (size == 0) return false;
+  std::cout << "Legal moves\n";
+  for (int i = 0; i < size; i++) {
+    std::cout << i << " " << print_move(mList[i]) << std::endl;
+  }
 
   std::uniform_int_distribution<size_t> distr(0, size - 1);
   size_t i = distr(rng);
   m = mList[i];
-  /*if (i < capture) {
-    strcpy(response, "move");
-  } else {
-    strcpy(response, "flip");
-  }*/
+  
   std::cout << print_board() << std::endl; 
   return true;
 }

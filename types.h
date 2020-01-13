@@ -6,7 +6,6 @@
 namespace DarkChess {
 
 enum Move : int {
-  MOVE_NONE,
   MOVE_PASS = 1024
 };
 
@@ -52,9 +51,9 @@ enum PieceType : int {
  */
 enum Piece : int {
   R_PAWN, R_CANNON, R_KNIGHT, R_ROOK, R_MINISTER, R_GUARD, R_KING,
-  B_PAWN = 8, B_CANNON, B_KNIGHT, B_ROOK, B_MINISTER, B_GUARD, B_KING,
-  PIECE_DARK = 23,
-  NO_PIECE = 24,
+  B_PAWN = 16, B_CANNON, B_KNIGHT, B_ROOK, B_MINISTER, B_GUARD, B_KING,
+  PIECE_DARK = 39,
+  NO_PIECE = 40,
   PIECE_NB = 14
 };
 
@@ -104,9 +103,9 @@ ENABLE_INCR_OPERATORS_ON(T)
 
 ENABLE_INCR_OPERATORS_ON(PieceType)
 ENABLE_INCR_OPERATORS_ON(Piece)
-ENABLE_INCR_OPERATORS_ON(Square)
 ENABLE_INCR_OPERATORS_ON(Color)
 
+ENABLE_FULL_OPERATORS_ON(Square)
 ENABLE_FULL_OPERATORS_ON(File)
 ENABLE_FULL_OPERATORS_ON(Rank)
 
@@ -152,15 +151,15 @@ constexpr Square make_square(File f, Rank r) {
 }
 
 constexpr Piece make_piece(Color c, PieceType pt) {
-  return Piece((c << 3) + pt);
+  return Piece((c << 4) + pt);
 }
 
 inline PieceType type_of(Piece pc) {
-  return PieceType(pc & 7);
+  return PieceType(pc & 15);
 }
 
 inline Color color_of(Piece pc) {
-  return Color(pc >> 3);
+  return Color(pc >> 4);
 }
 
 constexpr bool is_ok(Square s) {

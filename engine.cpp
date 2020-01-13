@@ -83,8 +83,11 @@ bool Engine::flip(const char* data[], char* response) {
 
 bool Engine::genmove(const char* data[], char* response) {
   Move m;
-  board.genmove(m);
-  strcpy(response, board.print_move(m).c_str());
+  if (board.genmove(m)) {
+    strcpy(response, board.print_move(m).c_str());
+  } else {
+    strcpy(response, "no legal moves");
+  }
   return 0;
 }
 

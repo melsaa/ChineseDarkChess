@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <random>
 #include <string.h>
+#include <bitset>
 
 #include "types.h"
 #include "magic.h"
@@ -15,8 +16,10 @@ namespace DarkChess {
 class Board {
   public:
     Board(int seed = 9);
-
+    void clear_bitboards();
     void init();
+    void set_from_FEN(std::string FEN);
+
     template <Color Us> int legal_normal_actions(MoveList &mL, int idx);
     Bitboard CGen(Bitboard src);
     template <Color Us> int legal_capture_actions(MoveList &mL, int idx);
@@ -41,7 +44,7 @@ class Board {
     int gameLength;
     Piece board[SQUARE_NB];
     Bitboard byTypeBB[PIECE_TYPE_NB]; // 0-6, 7: Dark, 8: Empty, 9: ALL_PIECES
-    Bitboard byColorBB[COLOR_NB]; // RED, BLACK
+    Bitboard byColorBB[COLOR_NB+1]; // RED, BLACK, DARK
 
     inline Bitboard pieces(PieceType pt) const {
       return byTypeBB[pt];
@@ -81,17 +84,25 @@ class Board {
     }
 
     inline void put_piece(Piece pc, Square s) {
+      //std::cerr << "put_piece\n";
+      Bitboard mask = (1UL << s);
       board[s] = pc;
-      byTypeBB[ALL_PIECES] ^= (1UL << s);
-      byTypeBB[type_of(pc)] ^= (1UL << s);
-      byColorBB[color_of(pc)] ^= (1UL << s);
+      byTypeBB[ALL_PIECES] ^= mask;
+      byTypeBB[type_of(pc)] ^= mask;
+      byColorBB[color_of(pc)] ^= mask;
+      //std::cerr << std::bitset<32>(mask) << std::endl;
+      //std::cerr << std::bitset<32>(byTypeBB[EMPTY]) << std::endl;
     }
 
     inline void remove_piece(Piece pc, Square s) {
+      //std::cerr << "remove piece\n";
+      Bitboard mask = (1UL << s);
       board[s] = NO_PIECE;
-      byTypeBB[ALL_PIECES] ^= (1UL << s);
-      byTypeBB[type_of(pc)] ^= (1UL << s);
-      byColorBB[color_of(pc)] ^= (1UL << s);
+      byTypeBB[ALL_PIECES] ^= mask;
+      byTypeBB[type_of(pc)] ^= mask;
+      byColorBB[color_of(pc)] ^= mask;
+      //std::cerr << std::bitset<32>(mask) << std::endl;
+      //std::cerr << std::bitset<32>(byTypeBB[EMPTY]) << std::endl;
     }
 };
 /*
