@@ -21,6 +21,12 @@ void Board::clear_bitboards() {
   for (Square s = SQ_A1; s < SQUARE_NB; ++s) {
     board[s] = NO_PIECE;
   }
+
+  for (Piece p = R_PAWN; p <= B_KING; ++p) {
+    pieceCount[get_piece(p)] = 0;
+  }
+  pieceCount[get_piece(PIECE_DARK)] = 32;
+  pieceCount[get_piece(NO_PIECE)] = 0;
 }
 
 void Board::init() {
@@ -75,6 +81,8 @@ void Board::set_from_FEN(std::string FEN) {
                 ++s; break;
       case 'K': put_piece(make_piece(BLACK, KING), s);
                 ++s; break;
+      case 'd': put_piece(PIECE_DARK, s);
+                ++s; break;
       case '/': s -= Square(8); // Go down one rank
                 break;
       default: s += Square(curChar - '0');
@@ -94,13 +102,12 @@ void Board::set_from_FEN(std::string FEN) {
   gameLength = stoi(token);
 }
 
-// TODO: Check the correctness of pMoves table
 template <Color Us>
 int Board::legal_normal_actions(MoveList &mL, int idx) {
   Bitboard dest;
   
-  std::cout << std::bitset<32>(pieces(ALL_PIECES)) << std::endl;
-  std::cout << std::bitset<32>(~pieces(ALL_PIECES)) << std::endl;
+  //std::cout << std::bitset<32>(pieces(ALL_PIECES)) << std::endl;
+  //std::cout << std::bitset<32>(~pieces(ALL_PIECES)) << std::endl;
   for (PieceType p = PAWN; p <= KING; ++p) {
     Bitboard b = pieces(Us, p);
     while (b) {
@@ -109,7 +116,7 @@ int Board::legal_normal_actions(MoveList &mL, int idx) {
       Square src = popLsb(mask);
       assert(type_of(board[src]) == p);
       dest = pMoves[src] & (~pieces(ALL_PIECES));
-      std::cout << src << " " << std::bitset<32>(dest) << std::endl;
+      //std::cout << src << " " << std::bitset<32>(dest) << std::endl;
 
       while (dest) {
         Bitboard mask2 = LS1B(dest);
@@ -155,7 +162,10 @@ int Board::legal_capture_actions(MoveList &mL, int idx) {
       Square src = popLsb(mask);
       assert(type_of(board[src]) == p);
       if (p == CANNON) {
-        dest = getCannonAttack(src, pieces(ALL_PIECES)) & pieces(Op);
+        dest = getCannonAttackSlow(src, pieces(ALL_PIECES), 2) & pieces(Op);
+        //std::cout << "Legal cannon actions\n";
+        //std::cout << std::bitset<32>(pieces(ALL_PIECES)) << std::endl;
+        //std::cout << std::bitset<32>(dest) << std::endl;
       } else {
         dest = pMoves[src] & can_be_captured;
       }
@@ -198,16 +208,18 @@ void Board::flip_move(Move m, Piece p, Color c) {
       }
       sideToMove = ~sideToMove;
       gameLength++;
-      std::cout << print_board() << std::endl;
+      //std::cout << print_board() << std::endl;
     } else {
       std::cerr << "Move not ok\n";
     }
   } else {
     std::cerr << "MOVE PASS\n";
   }
+  update_score(RED);
+  update_score(BLACK);
 }
 
-void Board::do_move(Move m) {
+void Board::do_move(Move m, Piece &captured) {
   if (m != MOVE_PASS) {
     if (!is_move_ok(m)) {
       std::cerr << "from " << from_sq(m) << " to " << to_sq(m) << std::endl;
@@ -219,12 +231,13 @@ void Board::do_move(Move m) {
     Square from = from_sq(m);
     Square to = to_sq(m);
     Piece pc = piece_on(from);
-    Piece captured = piece_on(to);
+    captured = piece_on(to);
+    Color c = color_of(pc);
     
-    if (color_of(pc) != us) {
+    if (c != us) {
       std::cerr << color_of(pc) << std::endl;
-      assert(color_of(pc) != COLOR_NONE);
-      assert(color_of(pc) == us);
+      assert(c != COLOR_NONE);
+      assert(c == us);
     }
     
     if (captured != NO_PIECE) {
@@ -237,7 +250,41 @@ void Board::do_move(Move m) {
   }
   sideToMove = ~sideToMove;
   gameLength++;
-  std::cout << print_board() << std::endl; 
+  update_score(RED);
+  update_score(BLACK);
+}
+
+void Board::undo_move(Move m, Piece captured) {
+  Square from = from_sq(m);
+  Square to = to_sq(m);
+  Piece pc = piece_on(to);
+
+  // k ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
+  move_piece(pc, to, from);
+
+  if (captured != NO_PIECE) {
+    put_piece(captured, to);
+    // k ^= Zobrist::psq[captured][capsq];
+  }
+
+  sideToMove = ~sideToMove;
+  gameLength--;
+  update_score(RED);
+  update_score(BLACK);
+}
+
+int Board::get_legal_moves(MoveList &mList) {
+  int size = 0;
+  if (sideToMove == RED) {
+    size = legal_normal_actions<RED>(mList, 0);
+    size = legal_capture_actions<RED>(mList, size);
+  } else if (sideToMove == BLACK) {
+    size = legal_normal_actions<BLACK>(mList, 0);
+    size = legal_capture_actions<BLACK>(mList, size);
+  }
+
+  //size = legal_flip_actions(mList, size);
+  return size;
 }
 
 bool Board::genmove(Move &m) {
@@ -251,21 +298,21 @@ bool Board::genmove(Move &m) {
     normal = legal_normal_actions<BLACK>(mList, 0);
     capture = legal_capture_actions<BLACK>(mList, normal);
   }
-
-  flip = legal_flip_actions(mList, capture);
+  
+  flip = legal_flip_actions(mList, 0);
+  
   size = flip;
-  assert(size > 0);
   if (size == 0) return false;
-  std::cout << "Legal moves\n";
+  /*std::cout << "Legal moves\n";
   for (int i = 0; i < size; i++) {
     std::cout << i << " " << print_move(mList[i]) << std::endl;
-  }
+  }*/
 
   std::uniform_int_distribution<size_t> distr(0, size - 1);
   size_t i = distr(rng);
   m = mList[i];
-  
-  std::cout << print_board() << std::endl; 
+
+  //std::cout << print_board() << std::endl; 
   return true;
 }
 
@@ -273,12 +320,38 @@ Color Board::side_to_move() const { return sideToMove; }
 
 int Board::get_gameLength() const { return gameLength; }
 
+std::minstd_rand Board::getRng() const { return rng; }
+
 void Board::update_status() {
   if (pieces(RED) == 0) {
     status_ = Status::BlackWin;
   } else if (pieces(BLACK) == 0) {
     status_ = Status::RedWin;
   }
+}
+
+void Board::update_basic_value(Color Us) {
+  Color Op = ~Us;
+  BV[get_piece(Us, PAWN)] = 1 + 4 * popCount(pieces(Op, KING)) + popCount(pieces(Op, PAWN));
+  BV[get_piece(Us, KNIGHT)] = 1 + 4 * popCount(pieces(Op, PAWN)) + popCount(pieces(Op, CANNON, KNIGHT));
+  BV[get_piece(Us, ROOK)] = 1 + 4 * popCount(pieces(Op, KNIGHT, PAWN)) + popCount(pieces(Op, ROOK, CANNON));
+  BV[get_piece(Us, MINISTER)] = 1 + 4 * popCount(pieces(Op, ROOK, KNIGHT, PAWN)) + popCount(pieces(Op, MINISTER, CANNON));
+  BV[get_piece(Us, GUARD)] = 1 + 4 * popCount(pieces(Op, MINISTER, ROOK, KNIGHT, PAWN)) + popCount(pieces(Op, GUARD, CANNON));
+  BV[get_piece(Us, KING)] = 1 + 4 * popCount(pieces(Op, GUARD, MINISTER, ROOK, KNIGHT)) + popCount(pieces(Op, PAWN, CANNON, KING));
+  BV[get_piece(Us, CANNON)] = 4 * popCount(pieces(Op)) + popCount(pieces(Op));
+}
+
+void Board::update_score(Color Us) {
+  Color c = ~Us; // c = Opponent
+  update_basic_value(c);
+  score[Us] = 0;
+  score[Us] += pieceCount[get_piece(Us, PAWN)] * PawnValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, KING)]);
+  score[Us] += pieceCount[get_piece(Us, KNIGHT)] * KnightValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)]);
+  score[Us] += pieceCount[get_piece(Us, ROOK)] * RookValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)]);
+  score[Us] += pieceCount[get_piece(Us, MINISTER)] * MinisterValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)]);
+  score[Us] += pieceCount[get_piece(Us, GUARD)] * GuardValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)]);
+  score[Us] += pieceCount[get_piece(Us, KING)] * 320 * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
+  score[Us] += pieceCount[get_piece(Us, CANNON)] * CannonValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
 }
 
 bool Board::is_terminal() const {
@@ -292,6 +365,23 @@ Color Board::who_won() const {
   if (status_ == Status::RedWin) return RED;
   else if (status_ == Status::BlackWin) return BLACK;
   return COLOR_NONE;
+}
+
+int Board::num_of_dark_pieces() const {
+  return popCount(pieces(DARK));
+}
+
+int Board::get_score(Color c) const {
+  return score[c];
+}
+
+int Board::evaluate(Color Us) const {
+  //std::cout << "Evaluate...\n";
+  //std::cout << "sideToMove " << Us << std::endl;
+  Color Op = ~Us;
+  int score = get_score(Us) - get_score(Op);
+  //std::cout << "Score: " << score << std::endl;
+  return score;
 }
 
 std::string Board::print_move(Move m) const {

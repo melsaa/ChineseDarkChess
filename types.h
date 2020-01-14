@@ -6,7 +6,8 @@
 namespace DarkChess {
 
 enum Move : int {
-  MOVE_PASS = 1024
+  MOVE_PASS = 1024,
+  MOVE_NULL = 1025
 };
 
 enum Color : int {
@@ -30,11 +31,12 @@ enum Value : int {
   VALUE_INFINITE  = 32001,
   VALUE_NONE      = 32002,
 
-  PawnValueMg   = 128,    PawnValueEg   = 213,
-  KnightValueMg = 781,    KnightValueEg = 854,
-  BishopValueMg = 825,    BishopValueEg = 915,
-  RookValueMg   = 1276,   RookValueEg   = 1380,
-  QueenValueMg  = 2538,   QueenValuEg   = 2682,
+  PawnValueMg   = 10,    PawnValueEg   = 213,
+  CannonValueMg = 200,    CannonValueEg = 600,
+  KnightValueMg = 50,    KnightValueEg = 854,
+  RookValueMg   = 75,   RookValueEg   = 1380,
+  MinisterValueMg = 100,  MinisterValueEg = 915,
+  GuardValueMg  = 250,   GuardValueEg   = 2682,
 
   MidgameLimit  = 15258,  EndgameLimit = 3915
 };
@@ -85,6 +87,8 @@ enum File : int {
 enum Rank : int {
   RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, RANK_NB
 };
+
+enum Score : int { SCORE_ZERO };
 
 #define ENABLE_BASE_OPERATORS_ON(T)                                \
 constexpr T operator+(T d1, T d2) { return T(int(d1) + int(d2)); } \
@@ -154,6 +158,19 @@ constexpr Piece make_piece(Color c, PieceType pt) {
   return Piece((c << 4) + pt);
 }
 
+inline int get_piece(Piece pc) {
+  if (int(pc) > 22) {
+    return int(pc)-25;
+  } else if (int(pc) > 6) {
+    return int(pc)-9;
+  }
+  return int(pc);
+}
+
+inline int get_piece(Color c, PieceType pt) {
+  return get_piece(make_piece(c, pt));
+}
+
 inline PieceType type_of(Piece pc) {
   return PieceType(pc & 15);
 }
@@ -195,6 +212,12 @@ inline Bitboard LS1B(Bitboard b) {
 }
 
 inline int count_1s(uint64_t b) {
+  int n;
+  for (n = 0; b; n++, b &= b - 1);
+  return n;
+}
+
+inline int popCount(Bitboard b) {
   int n;
   for (n = 0; b; n++, b &= b - 1);
   return n;

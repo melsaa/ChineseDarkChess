@@ -25,14 +25,23 @@ class Board {
     template <Color Us> int legal_capture_actions(MoveList &mL, int idx);
     int legal_flip_actions(MoveList &mL, int idx);
     void flip_move(Move m, Piece p, Color c);
-    void do_move(Move m);
+    void do_move(Move m, Piece &captured);
+    void undo_move(Move m, Piece captured);
+    int get_legal_moves(MoveList &mList);
     bool genmove(Move &m);
 
     Color side_to_move() const;
     int get_gameLength() const;
+    std::minstd_rand getRng() const;
     void update_status();
+    void update_basic_value(Color Us);
+    void update_score(Color Us);
     bool is_terminal() const;
     Color who_won() const;
+    int num_of_dark_pieces() const;
+    int get_score(Color c) const;
+    int evaluate(Color Us) const;
+
     std::string print_move(Move m) const;
     char print_piece(Piece p) const;
     std::string print_board() const;
@@ -42,16 +51,19 @@ class Board {
     Color sideToMove;
     Status status_;
     int gameLength;
+    int pieceCount[PIECE_NB+2]; // + PIECE_DARK, NO_PIECE
     Piece board[SQUARE_NB];
     Bitboard byTypeBB[PIECE_TYPE_NB]; // 0-6, 7: Dark, 8: Empty, 9: ALL_PIECES
     Bitboard byColorBB[COLOR_NB+1]; // RED, BLACK, DARK
-
-    inline Bitboard pieces(PieceType pt) const {
-      return byTypeBB[pt];
-    }
+    int score[COLOR_NB];
+    int BV[PIECE_NB];
 
     inline Bitboard pieces(Color c) const {
       return byColorBB[c];
+    }
+
+    inline Bitboard pieces(PieceType pt) const {
+      return byTypeBB[pt];
     }
 
     inline Bitboard pieces(Color c, PieceType pt) const {
@@ -90,6 +102,7 @@ class Board {
       byTypeBB[ALL_PIECES] ^= mask;
       byTypeBB[type_of(pc)] ^= mask;
       byColorBB[color_of(pc)] ^= mask;
+      pieceCount[get_piece(pc)]++;
       //std::cerr << std::bitset<32>(mask) << std::endl;
       //std::cerr << std::bitset<32>(byTypeBB[EMPTY]) << std::endl;
     }
@@ -101,6 +114,7 @@ class Board {
       byTypeBB[ALL_PIECES] ^= mask;
       byTypeBB[type_of(pc)] ^= mask;
       byColorBB[color_of(pc)] ^= mask;
+      pieceCount[get_piece(pc)]--;
       //std::cerr << std::bitset<32>(mask) << std::endl;
       //std::cerr << std::bitset<32>(byTypeBB[EMPTY]) << std::endl;
     }

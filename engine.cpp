@@ -68,7 +68,9 @@ bool Engine::move(const char* data[], char* response) {
   Square s1 = toSquare(data[0]);
   Square s2 = toSquare(data[1]);
   Move m = make_move(s1, s2);
-  board.do_move(m);
+  Piece captured;
+  board.do_move(m, captured);
+  std::cout << board.print_board() << std::endl;
   return 0;
 }
 
@@ -78,17 +80,40 @@ bool Engine::flip(const char* data[], char* response) {
   Square s = toSquare(data[0]);
   Move m = make_move(s, s);
   board.flip_move(m, p, c);
+  std::cout << board.print_board() << std::endl;
   return 0;
 }
 
 bool Engine::genmove(const char* data[], char* response) {
   Move m;
-  if (board.genmove(m)) {
+  //if (board.genmove(m)) {
+  Search::iterDeep(board);
+  if (Search::_bestMove != MOVE_NULL) {
+    m = Search::_bestMove;
     strcpy(response, board.print_move(m).c_str());
   } else {
     strcpy(response, "no legal moves");
   }
+  std::cout << board.print_board() << std::endl;
   return 0;
+}
+
+bool Engine::searchMove(Move &m) {
+  Search::iterDeep(board);
+  MoveList mList;
+  if (Search::_bestMove == MOVE_NULL || Search::_bestScore < Search::MIN_SCORE) {
+    std::cout << "bestMove = NULL or bestScore < 100 " << Search::_bestScore << std::endl;
+    int size = board.legal_flip_actions(mList, 0);
+
+    if (size == 0) return false;
+
+    //std::uniform_int_distribution<size_t> distr(0, size - 1);
+    //size_t i = distr(board.getRng());
+    m = mList[rand() % size];
+  } else {
+    m = Search::_bestMove;
+  }
+  return true;
 }
 
 bool Engine::game_over(const char* data[], char* response) {

@@ -46,8 +46,11 @@ uint64_t cmask(Square sq) {
 
 uint64_t getCannonAttack(Square sq, uint64_t blockers) {
   blockers &= cannonMasks[sq];
-  uint64_t keyH = (blockers & cannonHMagics[sq]) >> (64 - cBits[sq]);
-  uint64_t keyV = (blockers & cannonVMagics[sq]) >> (64 - cBits[sq]);
+  uint64_t keyH = transform(blockers, cannonHMagics[sq], cBits[sq]);
+  uint64_t keyV = transform(blockers, cannonVMagics[sq], cBits[sq]);
+  std::cout << "square " << sq << std::endl;
+  std::cout << "H " << std::bitset<32>(cannonHTable[sq][keyH]) << std::endl;
+  std::cout << "V " << std::bitset<32>(cannonVTable[sq][keyV]) << std::endl;
   return cannonHTable[sq][keyH] | cannonVTable[sq][keyV];
 }
 
@@ -57,8 +60,10 @@ uint64_t getCannonAttackSlow(Square sq, uint64_t blockers, int dir) {
   
   if (dir == 0) {
     directions = {EAST, WEST};
-  } else {
+  } else if (dir == 1) {
     directions = {NORTH, SOUTH};
+  } else {
+    directions = {NORTH, SOUTH, EAST, WEST};
   }
 
   for (Direction d: directions) {
@@ -80,7 +85,7 @@ uint64_t getCannonAttackSlow(Square sq, uint64_t blockers, int dir) {
 }
 
 int transform(uint64_t b, uint64_t magic, int bits) {
-  return (int)((b * magic) >> (64- bits));
+  return (int)((b * magic) >> (64 - bits));
 }
 
 #ifdef COMPUTE_MAGICS
@@ -133,10 +138,14 @@ void initCannonMagicTable() {
     // For all possible blockers for this square
     for (uint64_t blockerIndex = 0; blockerIndex < (1UL << cBits[s]); blockerIndex++) {
       blockers = getBlockersFromIndex(blockerIndex, cannonMasks[s]);
-      keyH = (blockers * cannonHMagics[s]) >> (64 - cBits[s]);
-      keyV = (blockers * cannonVMagics[s]) >> (64 - cBits[s]);
+      keyH = transform(blockers, cannonHMagics[s], cBits[s]);
+      keyV = transform(blockers, cannonVMagics[s], cBits[s]);
       cannonHTable[s][keyH] = getCannonAttackSlow(s, blockers, 0);
       cannonVTable[s][keyV] = getCannonAttackSlow(s, blockers, 1);
+      /*if (s == Square(22)) {
+        std::cout << "blockers " << std::bitset<32>(blockers) << std::endl;
+        std::cout << "H        " << std::bitset<32>(cannonHTable[s][keyH]) << std::endl;
+      }*/
     }
   }
 }

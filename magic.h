@@ -2,6 +2,8 @@
 
 #include <vector>
 #include <assert.h>
+#include <iostream>
+#include <bitset>
 #include "types.h"
 
 namespace DarkChess {

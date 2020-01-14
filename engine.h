@@ -9,6 +9,7 @@
 
 #include "types.h"
 #include "state.h"
+#include "search.h"
 
 using namespace DarkChess;
 
@@ -59,6 +60,8 @@ class Engine {
     bool time_left(const char* data[], char* response);// 16
     bool showboard(const char* data[], char* response);// 17
   
+    bool searchMove(Move &m);
+
   private:
     Board board;
     
