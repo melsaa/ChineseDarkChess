@@ -34,6 +34,9 @@ void Board::clear_bitboards() {
   pieceCount[get_piece(NO_PIECE)] = 32;
 
   hash_ = 0;
+  repetition = 0;
+  noCaptureFlipMoves = 0;
+  history = {};
 }
 
 void Board::init_hash() {
@@ -66,6 +69,8 @@ void Board::init() {
   for (Square s = SQ_A1; s < SQUARE_NB; ++s) {
     put_piece(PIECE_DARK, s);
   }
+
+  history.push(hash_);
 }
 
 void Board::set_from_FEN(std::string FEN) {
@@ -222,6 +227,15 @@ int Board::legal_flip_actions(MoveList &mL, int idx) {
   return idx;
 }
 
+void Board::update_history() {
+  if (history.size() == 4) {
+    history.pop();
+    history.push(hash_);
+  } else {
+    history.push(hash_);
+  }
+}
+
 void Board::flip_move(Move m, Piece p, Color c) {
   if (m != MOVE_PASS) {
     if (!is_move_ok(m)) {
@@ -243,8 +257,10 @@ void Board::flip_move(Move m, Piece p, Color c) {
   } else {
     std::cerr << "MOVE PASS\n";
   }
+  noCaptureFlipMoves = 0;
   update_material_score(RED);
   update_material_score(BLACK);
+  update_history();
 }
 
 void Board::do_move(Move m, Piece &captured) {
@@ -254,7 +270,6 @@ void Board::do_move(Move m, Piece &captured) {
       assert(is_move_ok(m));
     }
 
-    // Key k = st->key ^ Zobrist::side;
     Color us = sideToMove;
     Square from = from_sq(m);
     Square to = to_sq(m);
@@ -271,16 +286,20 @@ void Board::do_move(Move m, Piece &captured) {
     if (captured != NO_PIECE) {
       Square capsq = to;
       remove_piece(captured, capsq);
-      // k ^= Zobrist::psq[captured][capsq];
+      noCaptureFlipMoves = 0;
       update_material_score(RED);
       update_material_score(BLACK);
+    } else {
+      noCaptureFlipMoves++;
     }
-    // k ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
     move_piece(pc, from, to);
   }
   sideToMove = ~sideToMove;
   hash_ ^= hashTurn;
   gameLength++;
+  if (hash_ == history.front()) repetition += 1;
+  else repetition = 0;
+  update_history();
 }
 
 void Board::undo_move(Move m, Piece captured) {
@@ -288,17 +307,16 @@ void Board::undo_move(Move m, Piece captured) {
   Square to = to_sq(m);
   Piece pc = piece_on(to);
 
-  // k ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
   move_piece(pc, to, from);
 
   if (captured != NO_PIECE) {
     put_piece(captured, to);
-    // k ^= Zobrist::psq[captured][capsq];
     update_material_score(RED);
     update_material_score(BLACK);
   }
 
   sideToMove = ~sideToMove;
+  hash_ ^= hashTurn;
   gameLength--;
 }
 
@@ -353,11 +371,23 @@ std::minstd_rand Board::getRng() const { return rng; }
 
 uint64_t Board::getHash() const { return hash_; }
 
-void Board::update_status() {
+int Board::getRepetition() const { return repetition; }
+
+int Board::getNoCFMoves() const { return noCaptureFlipMoves; }
+
+void Board::update_status(int legalMoves) {
   if (pieces(RED) == 0) {
     status_ = Status::BlackWin;
   } else if (pieces(BLACK) == 0) {
     status_ = Status::RedWin;
+  } else if (repetition >= 9) {
+    status_ = Status::Draw;
+  } else if (legalMoves == 0) {
+    if (sideToMove == RED) {
+      status_ = Status::BlackWin;
+    } else if (sideToMove == BLACK) {
+      status_ = Status::RedWin;
+    }
   }
 }
 
@@ -368,7 +398,7 @@ void Board::update_basic_value(Color Us) {
   BV[get_piece(Us, ROOK)] = 1 + 4 * popCount(pieces(Op, KNIGHT, PAWN)) + popCount(pieces(Op, ROOK, CANNON));
   BV[get_piece(Us, MINISTER)] = 1 + 4 * popCount(pieces(Op, ROOK, KNIGHT, PAWN)) + popCount(pieces(Op, MINISTER, CANNON));
   BV[get_piece(Us, GUARD)] = 1 + 4 * popCount(pieces(Op, MINISTER, ROOK, KNIGHT, PAWN)) + popCount(pieces(Op, GUARD, CANNON));
-  BV[get_piece(Us, KING)] = 1 + 4 * popCount(pieces(Op, GUARD, MINISTER, ROOK, KNIGHT)) + popCount(pieces(Op, PAWN, CANNON, KING));
+  BV[get_piece(Us, KING)] = 1 + 4 * popCount(pieces(Op, GUARD, MINISTER, ROOK, KNIGHT)) + popCount(pieces(Op, CANNON, KING));
   BV[get_piece(Us, CANNON)] = 4 * popCount(pieces(Op)) + popCount(pieces(Op));
 }
 
@@ -381,7 +411,7 @@ void Board::update_material_score(Color Us) {
   score[Us] += pieceCount[get_piece(Us, ROOK)] * RookValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)]);
   score[Us] += pieceCount[get_piece(Us, MINISTER)] * MinisterValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)]);
   score[Us] += pieceCount[get_piece(Us, GUARD)] * GuardValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)]);
-  score[Us] += pieceCount[get_piece(Us, KING)] * KingValue * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
+  score[Us] += pieceCount[get_piece(Us, KING)] * KingValue * (BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
   score[Us] += pieceCount[get_piece(Us, CANNON)] * CannonValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
 }
 

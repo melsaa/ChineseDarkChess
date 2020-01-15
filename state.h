@@ -36,13 +36,18 @@ class Board {
     int get_gameLength() const;
     std::minstd_rand getRng() const;
     uint64_t getHash() const;
-    void update_status();
+    int getRepetition() const;
+    int getNoCFMoves() const;
+    int get_score(Color c) const;
+
+    void update_status(int legalMoves);
+    void update_history();
     void update_basic_value(Color Us);
     void update_material_score(Color Us);
+    
     bool is_terminal() const;
     Color who_won() const;
     int num_of_dark_pieces() const;
-    int get_score(Color c) const;
     int evaluate(Color Us) const;
 
     std::string print_move(Move m) const;
@@ -53,6 +58,8 @@ class Board {
     std::minstd_rand rng;
     uint64_t hash_;
     std::queue<uint64_t> history;
+    int repetition;
+    int noCaptureFlipMoves;
     Color sideToMove;
     Status status_;
     int gameLength;

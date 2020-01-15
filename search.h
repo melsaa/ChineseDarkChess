@@ -6,7 +6,7 @@
 #include "state.h"
 #include "tt.h"
 
-#define INF 999999999
+#define INF 2147483647
 
 namespace Search {
 

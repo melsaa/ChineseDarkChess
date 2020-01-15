@@ -55,11 +55,12 @@ void rootMax(DarkChess::Board &board, int depth) {
   int currScore;
   DarkChess::Move bestMove = DarkChess::MOVE_NULL;
   Us = board.side_to_move();
-
+  std::cout << size << " legalMoves\n";
   for (int i = 0; i < size; i++) {
     board.do_move(legalMoves[i], captured);
     
     currScore = -negaMax(board, depth - 1, -beta, -alpha);
+    //std::cout << i << " " << board.print_move(legalMoves[i]) << " score " << currScore << std::endl;
     board.undo_move(legalMoves[i], captured);
     if (currScore > alpha) {
       bestMove = legalMoves[i];
@@ -68,7 +69,7 @@ void rootMax(DarkChess::Board &board, int depth) {
     if (alpha >= beta) break;
   }
   currScore = board.evaluate(Us);
-  if (flip > 0 && alpha <= currScore) {
+  if (flip > 0 && (alpha <= currScore || size == 0)) {
     DarkChess::MoveList mList;
     int size = board.legal_flip_actions(mList, 0);
     bestMove = mList[rand() % size];
@@ -78,7 +79,7 @@ void rootMax(DarkChess::Board &board, int depth) {
 
   // If the best move was not set in the main search loop
   // just pick the first move available
-  if (bestMove == DarkChess::MOVE_NULL) {
+  if (bestMove == DarkChess::MOVE_NULL && size > 0) {
     bestMove = legalMoves[0];
   }
 
@@ -97,12 +98,19 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
 
   if (depth == 0 || elapsed_seconds.count() >= 6) {
     score = board.evaluate(Us);
-    std::cout << "depth 0 return evaluate\n";
+    //std::cout << "depth 0 return evaluate\n";
     return score;
   }
 
-  // TODO: Check for threefold repetition draws
-  // TODO: Check for no flip or capture move draws (50 moves)
+  // Check for threefold repetition draws
+  if (board.getRepetition() >= 9) {
+    return 0;
+  }
+
+  // Check for 60 moves draws
+  if (board.getNoCFMoves() >= 60) {
+    return 0;
+  }
 
   const Trans::TTEntry *ttEntry = tt.getEntry(board.getHash());
   // Check transposition table cache
@@ -123,15 +131,24 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
   DarkChess::MoveList legalMoves;
   int size = board.get_legal_moves(legalMoves);
   int flip = board.num_of_dark_pieces();
+  /*std::cout << depth << " sideToPlay " << board.side_to_move() << std::endl;
+  std::cout << board.print_board() << std::endl;
+  std::cout << "legalMoves " << size << std::endl;*/
 
   if (size == 0 && flip == 0) {
-    board.update_status();
+    board.update_status(size);
     // INF = win, -INF = lose
-    score = board.who_won() == board.side_to_move() ? INF : -INF;
-    std::cout << "no legal moves return game score\n";
+    if (board.who_won() == board.side_to_move()) {
+      score = INF;
+    } else if (board.who_won() == (~board.side_to_move())) {
+      score = -INF;
+    } else {
+      std::cout << "COLOR_NONE\n";
+    }
+    //std::cout << "no legal moves return game score " << score << std::endl;
     return score;
   } else if (size == 0 && flip > 0) {
-    std::cout << "only flip moves return evaluate\n";
+    //std::cout << "only flip moves return evaluate\n";
     return board.evaluate(Us);
   }
 
@@ -145,7 +162,10 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
     
     score = -negaMax(board, depth - 1, -beta, -alpha);
     board.undo_move(legalMoves[i], captured);
-    if (score >= beta) return beta; // beta cut-off
+    if (score >= beta) {
+      //std::cout << "beta cut off " << beta << std::endl;
+      return beta; // beta cut-off
+    }
     if (score > alpha) {
       bestMove = legalMoves[i];
       alpha = score;
@@ -165,7 +185,7 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
   Trans::TTEntry newTTEntry(alpha, depth, bestMove, _flag);
   tt.set(board.getHash(), newTTEntry);
 
-  std::cout << "return alpha\n";
+  //std::cout << "return alpha " << alpha << std::endl;
   return alpha;
 }
 
