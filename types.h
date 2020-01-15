@@ -36,10 +36,14 @@ enum Value : int {
   KnightValueMg = 50,    KnightValueEg = 854,
   RookValueMg   = 75,   RookValueEg   = 1380,
   MinisterValueMg = 100,  MinisterValueEg = 915,
-  GuardValueMg  = 250,   GuardValueEg   = 2682,
+  GuardValueMg  = 260,   GuardValueEg   = 2682,
   KingValue = 320,
 
   MidgameLimit  = 15258,  EndgameLimit = 3915
+};
+
+enum Bonus : int {
+  BONUS_CAPTURE = 10
 };
 
 enum PieceType : int {
@@ -258,6 +262,7 @@ const Bitboard pMoves[32] = {
 
 #define MAX_MOVES 72 // 16 pieces x 4 directions + 2 * 4 (cannon)
 using MoveList = std::array<Move, MAX_MOVES>;
+using ScoreList = std::array<int, MAX_MOVES>;
 
 const Square index32[32] = {SQ_D8, SQ_A1, SQ_B1, SQ_B2, SQ_C1, SQ_A5, SQ_D7, SQ_C2, SQ_D1, SQ_C4, SQ_B5, SQ_D5, SQ_A8, SQ_D3, SQ_D2, SQ_B6,
                    SQ_C8, SQ_A2, SQ_D4, SQ_C7, SQ_B4, SQ_C5, SQ_C3, SQ_A6, SQ_B8, SQ_B7, SQ_A4, SQ_B3, SQ_A7, SQ_A3, SQ_D6, SQ_C6};

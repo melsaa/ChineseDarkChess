@@ -11,6 +11,7 @@
 
 #include "types.h"
 #include "magic.h"
+#include "move_ordering.h"
 
 namespace DarkChess {
 
@@ -22,14 +23,15 @@ class Board {
     void init();
     void set_from_FEN(std::string FEN);
 
-    template <Color Us> int legal_normal_actions(MoveList &mL, int idx);
+    template <Color Us> int legal_normal_actions(MoveList &mL, ScoreList &sL, int idx);
     Bitboard CGen(Bitboard src);
-    template <Color Us> int legal_capture_actions(MoveList &mL, int idx);
+    template <Color Us> int legal_capture_actions(MoveList &mL, ScoreList &sL, int idx);
     int legal_flip_actions(MoveList &mL, int idx);
     void flip_move(Move m, Piece p, Color c);
+    void undo_flip(Move m, Piece p, Color c);
     void do_move(Move m, Piece &captured);
     void undo_move(Move m, Piece captured);
-    int get_legal_moves(MoveList &mList);
+    int get_legal_moves(MoveList &mList, ScoreList &sList);
     bool genmove(Move &m);
 
     Color side_to_move() const;
@@ -39,11 +41,14 @@ class Board {
     int getRepetition() const;
     int getNoCFMoves() const;
     int get_score(Color c) const;
+    int get_pieceCount(Piece p) const;
+    bool is_dark(Square s) const;
 
     void update_status(int legalMoves);
     void update_history();
     void update_basic_value(Color Us);
     void update_material_score(Color Us);
+    void update_attack_score(Piece p, Square src);
     
     bool is_terminal() const;
     Color who_won() const;
@@ -68,7 +73,10 @@ class Board {
     Bitboard byTypeBB[PIECE_TYPE_NB]; // 0-6, 7: Dark, 8: Empty, 9: ALL_PIECES
     Bitboard byColorBB[COLOR_NB+1]; // RED, BLACK, DARK
     int score[COLOR_NB];
-    int BV[PIECE_NB];
+    int aScore[COLOR_NB];
+    int BV[PIECE_NB]; // Basic Value
+    int MV[PIECE_NB]; // Material Value
+    int TV[PIECE_NB][PIECE_NB]; // Threat Value
 
     inline Bitboard pieces(Color c) const {
       return byColorBB[c];
