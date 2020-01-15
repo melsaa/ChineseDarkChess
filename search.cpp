@@ -5,6 +5,7 @@ namespace Search {
 DarkChess::Move _bestMove;
 int _bestScore;
 DarkChess::Color Us;
+Trans::TranspTable tt;
 std::chrono::time_point<std::chrono::system_clock> start, end;
 std::chrono::duration<double> elapsed_seconds;
 
@@ -45,7 +46,7 @@ void rootMax(DarkChess::Board &board, int depth) {
   if (size == 0 && flip == 0) {
     _bestMove = DarkChess::MOVE_NULL; // not the best choice
     _bestScore = -INF;
-    std::cout << "no legal moves, bestScore = -INF\n";
+    std::cout << "LOSE no legal moves, bestScore = -INF\n";
     return;
   };
 
@@ -89,6 +90,7 @@ void rootMax(DarkChess::Board &board, int depth) {
 // Negamax with alpha-beta cut-off
 int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
   int score;
+  int alphaOrig = alpha;
   DarkChess::Piece captured;
   end = std::chrono::system_clock::now();
   elapsed_seconds = end - start;
@@ -101,6 +103,21 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
 
   // TODO: Check for threefold repetition draws
   // TODO: Check for no flip or capture move draws (50 moves)
+
+  const Trans::TTEntry *ttEntry = tt.getEntry(board.getHash());
+  // Check transposition table cache
+  if (ttEntry && (ttEntry->depth >= depth)) {
+    switch(ttEntry->flag) {
+      case Trans::EXACT: return ttEntry->score;
+      case Trans::UPPER_BOUND: beta = std::min(beta, ttEntry->score);
+                        break;
+      case Trans::LOWER_BOUND: alpha = std::max(alpha, ttEntry->score);
+                        break;
+    }
+    if (alpha >= beta) {
+      return ttEntry->score;
+    }
+  }
 
   //int m = alpha;
   DarkChess::MoveList legalMoves;
@@ -121,7 +138,7 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
   // TODO: extend search if king is in danger
   // TODO: quiescent Search if depth is 0
 
-  DarkChess::Move bestMove;
+  DarkChess::Move bestMove = DarkChess::MOVE_NULL;
 
   for (int i = 0; i < size; i++) {
     board.do_move(legalMoves[i], captured);
@@ -134,6 +151,20 @@ int negaMax(DarkChess::Board &board, int depth, int alpha, int beta) {
       alpha = score;
     }
   }
+
+  if (bestMove == DarkChess::MOVE_NULL) {
+    bestMove = legalMoves[0];
+  }
+  // Store bestScore in transposition table
+  Trans::Flag _flag;
+  if (alpha <= alphaOrig) {
+    _flag = Trans::UPPER_BOUND;
+  } else {
+    _flag = Trans::EXACT;
+  }
+  Trans::TTEntry newTTEntry(alpha, depth, bestMove, _flag);
+  tt.set(board.getHash(), newTTEntry);
+
   std::cout << "return alpha\n";
   return alpha;
 }

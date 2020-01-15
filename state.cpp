@@ -2,10 +2,15 @@
 
 namespace DarkChess {
 
+uint64_t hashArray[SQUARE_NB][PIECE_NB+1];
+uint64_t hashTurn;
+
 Board::Board(int seed) : rng(seed) {
   // Initialize magic bitboard
   initCannonMasks();
   initCannonMagicTable();
+
+  init_hash();
 }
 
 void Board::clear_bitboards() {
@@ -25,8 +30,30 @@ void Board::clear_bitboards() {
   for (Piece p = R_PAWN; p <= B_KING; ++p) {
     pieceCount[get_piece(p)] = 0;
   }
-  pieceCount[get_piece(PIECE_DARK)] = 32;
-  pieceCount[get_piece(NO_PIECE)] = 0;
+  pieceCount[get_piece(PIECE_DARK)] = 0;
+  pieceCount[get_piece(NO_PIECE)] = 32;
+
+  hash_ = 0;
+}
+
+void Board::init_hash() {
+  for (Square s = SQ_A1; s < SQUARE_NB; ++s) {
+    for (Piece p = R_PAWN; p <= PIECE_DARK; ++p) {
+      hashArray[s][get_piece(p)] = 0;
+      for (int k = 0; k < 64; ++k) {
+        if ((rng() / (RAND_MAX + 1.0)) > 0.5) {
+          hashArray[s][get_piece(p)] |= (1ULL << k);
+        }
+      }
+    }
+  }
+  
+  hashTurn = 0;
+  for (int k = 0; k < 64; k++) {
+    if ((rng() / (RAND_MAX + 1.0)) > 0.5) {
+      hashTurn |= (1ULL << k);
+    }
+  }
 }
 
 void Board::init() {
@@ -207,6 +234,7 @@ void Board::flip_move(Move m, Piece p, Color c) {
         sideToMove = c;
       }
       sideToMove = ~sideToMove;
+      hash_ ^= hashTurn;
       gameLength++;
       //std::cout << print_board() << std::endl;
     } else {
@@ -215,8 +243,8 @@ void Board::flip_move(Move m, Piece p, Color c) {
   } else {
     std::cerr << "MOVE PASS\n";
   }
-  update_score(RED);
-  update_score(BLACK);
+  update_material_score(RED);
+  update_material_score(BLACK);
 }
 
 void Board::do_move(Move m, Piece &captured) {
@@ -244,14 +272,15 @@ void Board::do_move(Move m, Piece &captured) {
       Square capsq = to;
       remove_piece(captured, capsq);
       // k ^= Zobrist::psq[captured][capsq];
+      update_material_score(RED);
+      update_material_score(BLACK);
     }
     // k ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
     move_piece(pc, from, to);
   }
   sideToMove = ~sideToMove;
+  hash_ ^= hashTurn;
   gameLength++;
-  update_score(RED);
-  update_score(BLACK);
 }
 
 void Board::undo_move(Move m, Piece captured) {
@@ -265,12 +294,12 @@ void Board::undo_move(Move m, Piece captured) {
   if (captured != NO_PIECE) {
     put_piece(captured, to);
     // k ^= Zobrist::psq[captured][capsq];
+    update_material_score(RED);
+    update_material_score(BLACK);
   }
 
   sideToMove = ~sideToMove;
   gameLength--;
-  update_score(RED);
-  update_score(BLACK);
 }
 
 int Board::get_legal_moves(MoveList &mList) {
@@ -322,6 +351,8 @@ int Board::get_gameLength() const { return gameLength; }
 
 std::minstd_rand Board::getRng() const { return rng; }
 
+uint64_t Board::getHash() const { return hash_; }
+
 void Board::update_status() {
   if (pieces(RED) == 0) {
     status_ = Status::BlackWin;
@@ -341,7 +372,7 @@ void Board::update_basic_value(Color Us) {
   BV[get_piece(Us, CANNON)] = 4 * popCount(pieces(Op)) + popCount(pieces(Op));
 }
 
-void Board::update_score(Color Us) {
+void Board::update_material_score(Color Us) {
   Color c = ~Us; // c = Opponent
   update_basic_value(c);
   score[Us] = 0;
@@ -350,7 +381,7 @@ void Board::update_score(Color Us) {
   score[Us] += pieceCount[get_piece(Us, ROOK)] * RookValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)]);
   score[Us] += pieceCount[get_piece(Us, MINISTER)] * MinisterValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)]);
   score[Us] += pieceCount[get_piece(Us, GUARD)] * GuardValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)]);
-  score[Us] += pieceCount[get_piece(Us, KING)] * 320 * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
+  score[Us] += pieceCount[get_piece(Us, KING)] * KingValue * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
   score[Us] += pieceCount[get_piece(Us, CANNON)] * CannonValueMg * (BV[get_piece(c, PAWN)] + BV[get_piece(c, CANNON)] + BV[get_piece(c, KNIGHT)] + BV[get_piece(c, ROOK)] + BV[get_piece(c, MINISTER)] + BV[get_piece(c, GUARD)] + BV[get_piece(c, KING)]);
 }
 
@@ -375,11 +406,19 @@ int Board::get_score(Color c) const {
   return score[c];
 }
 
+/*
+ * The evaluation function must be sensitive to the sideToMove
+ * For a position with MAX node to move, return score
+ * For a position with MIN node to move, return -score
+ */
 int Board::evaluate(Color Us) const {
   //std::cout << "Evaluate...\n";
   //std::cout << "sideToMove " << Us << std::endl;
   Color Op = ~Us;
   int score = get_score(Us) - get_score(Op);
+  if (Us != sideToMove) {
+    return -score;
+  }
   //std::cout << "Score: " << score << std::endl;
   return score;
 }

@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <random>
 #include <string.h>
+#include <queue>
 #include <bitset>
 
 #include "types.h"
@@ -17,6 +18,7 @@ class Board {
   public:
     Board(int seed = 9);
     void clear_bitboards();
+    void init_hash();
     void init();
     void set_from_FEN(std::string FEN);
 
@@ -33,9 +35,10 @@ class Board {
     Color side_to_move() const;
     int get_gameLength() const;
     std::minstd_rand getRng() const;
+    uint64_t getHash() const;
     void update_status();
     void update_basic_value(Color Us);
-    void update_score(Color Us);
+    void update_material_score(Color Us);
     bool is_terminal() const;
     Color who_won() const;
     int num_of_dark_pieces() const;
@@ -48,6 +51,8 @@ class Board {
 
   private:
     std::minstd_rand rng;
+    uint64_t hash_;
+    std::queue<uint64_t> history;
     Color sideToMove;
     Status status_;
     int gameLength;
@@ -93,6 +98,8 @@ class Board {
       byColorBB[color_of(pc)] ^= fromTo;
       board[from] = NO_PIECE;
       board[to] = pc;
+      hash_ ^= hashArray[from][get_piece(pc)];
+      hash_ ^= hashArray[to][get_piece(pc)];
     }
 
     inline void put_piece(Piece pc, Square s) {
@@ -103,6 +110,7 @@ class Board {
       byTypeBB[type_of(pc)] ^= mask;
       byColorBB[color_of(pc)] ^= mask;
       pieceCount[get_piece(pc)]++;
+      hash_ ^= hashArray[s][get_piece(pc)];
       //std::cerr << std::bitset<32>(mask) << std::endl;
       //std::cerr << std::bitset<32>(byTypeBB[EMPTY]) << std::endl;
     }
@@ -115,26 +123,12 @@ class Board {
       byTypeBB[type_of(pc)] ^= mask;
       byColorBB[color_of(pc)] ^= mask;
       pieceCount[get_piece(pc)]--;
+      if (pc != NO_PIECE) {
+        hash_ ^= hashArray[s][get_piece(pc)];
+      }
       //std::cerr << std::bitset<32>(mask) << std::endl;
       //std::cerr << std::bitset<32>(byTypeBB[EMPTY]) << std::endl;
     }
 };
-/*
-class Action;
-
-class State {
-  public:
-    Board board;
-    State();
-
-    bool is_terminal() const;
-    int player() const;
-    void apply_action(const Action& action);
-    void get_actions();
-    bool get_random_action(Action& action);
-    double evaluate() const;
-
-    std::string show_board() const;
-};*/
 
 } // namespace DarkChess

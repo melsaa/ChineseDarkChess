@@ -37,6 +37,7 @@ enum Value : int {
   RookValueMg   = 75,   RookValueEg   = 1380,
   MinisterValueMg = 100,  MinisterValueEg = 915,
   GuardValueMg  = 250,   GuardValueEg   = 2682,
+  KingValue = 320,
 
   MidgameLimit  = 15258,  EndgameLimit = 3915
 };
@@ -270,5 +271,8 @@ inline Square GetIndex(Bitboard mask) {
   //assert(idx < SQUARE_NB);
   return index32[idx];
 }
+
+extern uint64_t hashArray[SQUARE_NB][PIECE_NB+1];
+extern uint64_t hashTurn;
 
 } // namespace DarkChess
